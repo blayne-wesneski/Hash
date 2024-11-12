@@ -8,7 +8,7 @@ public class Hash<K, V> implements /* HashI<K, V> */ Iterable<K> {
         public K key;
         public V value;
 
-        public HashElement(final K key, final V value) {
+        public HashElement(K key, V value) {
             this.key = key;
             this.value = value;
         }
@@ -20,32 +20,47 @@ public class Hash<K, V> implements /* HashI<K, V> */ Iterable<K> {
 
         @Override
         public String toString() {
-            return "[ " + this.key + " : " this.value + " ]";
+            return "HashElement [key=" + this.key + ", value=" + this.value + "]";
         }
     }
 
-    class IteratorHelper implements Iterator<K> {
-        int counter;
+    class IteratorHelper<T> implements Iterator<T> {
+        T[] keys;
+        int position;
 
         public IteratorHelper() {
-            this.counter = 0;
+            keys = (T[]) new Object[numElements];
+
+            // get everything out of the hash and put into an array of keys
+            int p = 0;
+            for (int i = 0; i < tableSize; i++) {
+                LinkedList<HashElement<K, V>> list = table[i];
+
+                for (HashElement<K, V> h : list) {
+                    keys[p++] = (T) h.key;
+                }
+            }
+            // init position
+            position = 0;
         }
 
         @Override
         public boolean hasNext() {
-            return this.counter < Hash.this.elements;
+            return position < keys.length;
         }
 
         @Override
-        public K next() {
-            return Hash.this.table[this.counter++].key;
+        public T next() {
+            if (!hasNext()) {
+                return null;
+            }
+            return keys[position++];
         }
     }
 
     @Override
     public Iterator<K> iterator() {
-        // TODO Auto-generated method stub
-        return null;
+        return new IteratorHelper<K>();
     }
 
     private int numElements;
@@ -54,60 +69,90 @@ public class Hash<K, V> implements /* HashI<K, V> */ Iterable<K> {
     private LinkedList<HashElement<K, V>>[] table;
     private final boolean DEBUG = true;
 
-    public Hash(final int tableSize) {
+    public Hash(int tableSize) {
         this.tableSize = tableSize;
 
-        table = (linkedList<HashElement<K, V>>[]) new LinkedList[tableSize];
+        table = (LinkedList<HashElement<K, V>>[]) new LinkedList[tableSize];
 
         // init the linked lists
         for (int i = 0; i < table.length; i++) {
             table[i] = new LinkedList<HashElement<K, V>>();
         }
 
-        this.maxLoadFactor = 5;
+        this.maxLoadFactor = 0.5;
         this.numElements = 0;
     }
 
     public double loadFactor() {
         if (DEBUG)
-            System.out.println("LoadFactor=" + (double) numElements / (double) table.length);
+            System.out.println("loadFactor = " + ((double) numElements / (double) table.length));
         return (double) numElements / (double) table.length;
+
     }
 
     public boolean add(K key, V value) {
-        if (DEBUG) {
-            System.out.println("Add K=" + key + " and V=" + value);
-        }
 
-        // is full?
+        if (DEBUG)
+            System.out.println("Add K=" + key + " and V=" + value);
+
         if (maxLoadFactor < loadFactor()) {
             // TODO: resize...
             return false;
         }
 
-        // inti a hash element
-        HashElement<K, V> element = new HashElement<K, V>(key, value);
-        if (DEBUG) {
+        HashElement<K, V> element = new HashElement<>(key, value);
+        if (DEBUG)
             System.out.println("Element: " + element);
-        }
 
-        // Hash
-        // Get num
         int hashval = key.hashCode();
-        if (DEBUG) {
-            System.out.println("(1) Hashval)= " + hashval);
-        }
-        // ensure it's positive
+        if (DEBUG)
+            System.out.println("hashval = " + hashval);
         hashval = hashval & 0x7FFFFFFF;
-        if (DEBUG) {
-            System.out.println("(2) Hashval= " + hashval);
-        }
-        // limit to
+        if (DEBUG)
+            System.out.println("hashval = " + hashval);
         hashval = hashval % tableSize;
-        if (DEBUG) {
-            System.out.println("(3) Hashval= " + hashval);
-        }
+        if (DEBUG)
+            System.out.println("hashval = " + hashval);
+
+        table[hash(key)].addLast(element);
+
+        numElements++;
+        return true;
+    }
+
+    private int hash(K key) {
+        int hashval = key.hashCode();
+        if (DEBUG)
+            System.out.println("hashval = " + hashval);
+        hashval = hashval & 0x7FFFFFFF;
+        if (DEBUG)
+            System.out.println("hashval = " + hashval);
+        hashval = hashval % tableSize;
+        if (DEBUG)
+            System.out.println("hashval = " + hashval);
+
+        return hashval;
+    }
+
+    public boolean remove(K key) {
+        int hashval = hash(key);
+
+        table[hashval].removeLast();
 
         return true;
+
+    }
+
+    public V getValue(K key) {
+        int hashval = hash(key);
+
+        for (HashElement<K, V> el : table[hashval]) {
+            if (((Comparable<K>) key).compareTo(el.key) == 0) {
+                return el.value;
+            }
+        }
+
+        return null;
+
     }
 }
